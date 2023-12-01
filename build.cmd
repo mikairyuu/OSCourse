@@ -1,3 +1,3 @@
 git fetch
 git pull
-gcc hello_world.cpp -o result.exe
+cmake --build c:/Users/Administrator/Documents/Projects/OSCourse/build --config Debug
