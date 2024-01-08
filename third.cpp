@@ -245,7 +245,7 @@ void create_fork(int num) {
       second_fork_main();
     }
   } else {
-    std::thread waiting_thread([pid] {
+    std::thread waiting_thread([num, pid] {
       int status;
       waitpid(pid, &status, 0);
       if (num == 1) {
