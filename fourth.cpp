@@ -1,16 +1,71 @@
-#include <errno.h>
-#include <fcntl.h>
-#include <stdio.h>
-#include <termios.h>
-#include <unistd.h>
-
 #include <ctime>
 #include <fstream>
+#include <iostream>
 #include <numeric>
 #include <string>
 #include <thread>
 #include <vector>
 
+#ifdef WIN32
+#include <windows.h>
+#else
+#include <errno.h>
+#include <fcntl.h>
+#include <stdio.h>
+#include <termios.h>
+#include <unistd.h>
+#endif
+
+#ifdef WIN32
+const char* portname = "\\\\.\\COM1";
+HANDLE hSerial = NULL;
+
+double readTemperature() {
+  if (hSerial == NULL) {
+    hSerial = CreateFile(portname, GENERIC_READ | GENERIC_WRITE, 0, 0,
+                         OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, 0);
+
+    if (hSerial == INVALID_HANDLE_VALUE) {
+      std::cerr << "Error: Unable to open serial port " << portname
+                << std::endl;
+
+      return -1.0;
+    }
+
+    DCB dcbSerialParams = {0};
+    dcbSerialParams.DCBlength = sizeof(dcbSerialParams);
+    if (!GetCommState(hSerial, &dcbSerialParams)) {
+      std::cerr << "Error: Could not get current serial parameters"
+                << std::endl;
+      CloseHandle(hSerial);
+      return -1.0;
+    }
+    dcbSerialParams.BaudRate = CBR_9600;
+    dcbSerialParams.ByteSize = 8;
+    dcbSerialParams.StopBits = ONESTOPBIT;
+    dcbSerialParams.Parity = NOPARITY;
+    if (!SetCommState(hSerial, &dcbSerialParams)) {
+      std::cerr << "Error: Could not set serial parameters" << std::endl;
+      CloseHandle(hSerial);
+      return -1.0;
+    }
+  }
+
+  char buffer[1];
+  DWORD bytesRead;
+  std::string line;
+
+  while (ReadFile(hSerial, buffer, 1, &bytesRead, NULL) && bytesRead > 0) {
+    if (buffer[0] == '\n') break;
+    line += buffer[0];
+  }
+  
+  double temperature = atof(line.c_str());
+
+  return temperature;
+}
+
+#else
 int fd = 0;
 struct termios tty;
 const char* portname = "/dev/pts/2";
@@ -31,7 +86,7 @@ double readTemperature() {
       return errno;
     }
   }
-  
+
   char buf[256];
   int n = read(fd, buf, sizeof(buf));
   if (n < 0) {
@@ -40,10 +95,10 @@ double readTemperature() {
   }
 
   buf[n] = '\0';
-  
+
   return atof(buf);
 }
-
+#endif
 void writeTemperature(std::ofstream& file, double temperature) {
   std::time_t result = std::time(nullptr);
   file << std::asctime(std::localtime(&result)) << " " << temperature
@@ -80,8 +135,7 @@ int main() {
       writeTemperature(file3, average);
       dailyTemperatures.clear();
     }
-  
   }
-  
+
   return 0;
 }

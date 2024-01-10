@@ -7,3 +7,4 @@ OSProject
 build
 main
 log*
+*.exe
